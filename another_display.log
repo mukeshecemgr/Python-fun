@@ -1,0 +1,4 @@
+INFO:root:(another_display) ran with argemnts('Avengers: Infinity War', ('Anthony Russo', 'Joe Russo'), 2018) and keyword arguments{}
+INFO:root:(another_display) ran with argemnts('Black Panther', 'Ryan Coogler', 2018) and keyword arguments{}
+INFO:root:(another_display) ran with argemnts('Deadpool 2', 'David Leitch', 2018) and keyword arguments{}
+INFO:root:(another_display) ran with argemnts() and keyword arguments{'movie': 'Avengers: Endgame', 'director': ['Anthony Russo', 'Joe Russo'], 'year': 2018}
