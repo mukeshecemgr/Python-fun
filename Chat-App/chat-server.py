@@ -72,7 +72,8 @@ def userConnHandler(conn,addr,mydb,cursor):
                 update_data(mydb,cursor,user_status)
             user_conn[user]=conn
 
-            #print(user_conn)
+
+            print(user_conn)
 
         elif msg.get('type') == 'Delete':
             print("User {} wants to delete this account".format(msg.get('user')))
@@ -84,7 +85,6 @@ def userConnHandler(conn,addr,mydb,cursor):
             query1 = ("SELECT * FROM subscribers "
                 "WHERE user_id={} ".format(sender))
             result = query_table(mydb,cursor,query1,sender)
-
             #if caller status is found in server
             if len(result) is not 0:
                 #Lets check status of calle 
@@ -95,11 +95,16 @@ def userConnHandler(conn,addr,mydb,cursor):
                     print("Fatel : User not found")
                     pass
                 else:
+                    
                     connection = user_conn[receiver]
+                    print("Receiver :",connection)
                     msg['type'] = 'MessagRecv'
                     print(msg)
                     payLoad = pickle.dumps(msg)
-                    connection.send(payLoad)
+                    try:
+                        connection.send(payLoad)
+                    except:
+                        print("Bingooooooooooo")
 
 
         elif msg.get('type') == 'MessageRecv':
@@ -129,9 +134,6 @@ def client_handler(server,mydb,cursor):
     server.listen(100)
     while True:
         conn, addr = server.accept()
-        print(addr[0])
-        print(addr[1])
-        print(type(conn))
         try:
             _thread.start_new_thread( userConnHandler, (conn, addr,mydb,cursor) )
         except:
