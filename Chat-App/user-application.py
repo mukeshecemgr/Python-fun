@@ -10,7 +10,7 @@ from utility import *
 userID = '7091728998'
 userName = 'Mukesh'
 
-
+activeChat=False
 
 MAIN_TABLE_NAME = 'usr_'+userID
 DB_NAME = 'clientDB'
@@ -104,20 +104,26 @@ def chatBox(title):
     send_button.pack()
 
 
-def msg_sender(mydb,cursor,userID,clientObj,receiverID):
-    while True:
+def msg_sender(mydb,cursor,userID,receiverID):
+    global activeChat
+    while activeChat == True:
+        reply=input("{} Type :".format(userID))
         lTime = time.asctime()
-        print("{}[{}]:".format(userID,lTime))
-        #message = input()
+
         data = {
             'type':'MessageSend',
             'time':lTime,
             'sender':userID,
             'receiver':receiverID,
-            'message':"Hello"
+            'message':reply
         }
         payLoad = pickle.dumps(data)
-        clientObj.send(payLoad)
+        client.send(payLoad)
+        print("{}[{}]:{}".format(userID,lTime,reply))
+        if reply.capitalize() == "Bye":
+            activeChat = False
+            
+
 
 
 
@@ -161,20 +167,20 @@ def newMessages(mydb,cursor,userID):
             id += 1
         select = int(input("Select Id to See the message:"))
         count = 1
+        receiver=''
         for i in result:
             if count == select:
-                print("Match Found for <{}>".format(i[0]))
-                chatBox(i[0])
+                receiver=i[0]
                 query = ("SELECT contacts,time,message FROM {} WHERE contacts={} ".format(MAIN_TABLE_NAME,i[0]))
                 result = query_table(mydb,cursor,query,i[0])
-                msg_list = chat_box['msgList'] 
-                chat_box['receiver'] = i[0]
                 for idx in result:
-                    msg="{:<8}[{}]:{}".format(idx[0],idx[1],idx[2])
-                    msg_list.insert(tkinter.END, msg)
-                    #print("{}[{}]: {}".format(idx[0],idx[1],idx[2]))
-                    
+                    print("{:<8}[{}]:{}".format(idx[0],idx[1],idx[2]))
+                break
+
             count += 1
+        if count == select:
+            _thread.start_new_thread( msg_sender, (mydb,cursor,userID, receiver ) )
+
 
 
 
@@ -192,20 +198,21 @@ def onlineBuddies(mydb,cursor,userID):
             id += 1
         select = int(input("Select Id to Chat with..:"))
         count = 1
+        receiver=''
         for i in result:
             if count == select:
-                print("Match Found for <{}>".format(i[1]))
-                chatBox(i[2])
-                chat_box['receiver'] = i[1]
+                receiver=i[1]
                 query = ("SELECT contacts,time,message FROM {} WHERE contacts={} ".format(MAIN_TABLE_NAME,i[1]))
                 result = query_table(mydb,cursor,query,i[1])
-                msg_list = chat_box['msgList']  
-                #print("yahoooooooo",msg_list,result)
                 for idx in result:
                     msg="{:<8}[{}]:{}".format(i[2],idx[1],idx[2])
-                    msg_list.insert(tkinter.END, msg)
-                   # print("{}[{}]: {}".format(idx[0],idx[1],idx[2]))
+                    print(msg)
+                break
+
             count += 1
+        if count == select:
+            _thread.start_new_thread( msg_sender, (mydb,cursor,userID, receiver ) )
+
 
 
 
@@ -223,7 +230,6 @@ def msg_receiver(mydb,cursor,userID,clientObj, chat_box):
     'This thread will keep receiving message from server'
     while True:
         data = clientObj.recv(2048)
-        #print("Message Received..")
         msg = pickle.loads(data)
         if msg.get('type') == 'Status':
             contacts = msg.get('contacts')
@@ -235,10 +241,8 @@ def msg_receiver(mydb,cursor,userID,clientObj, chat_box):
                 update_data(mydb,cursor,user_status)
         if msg.get('type') == 'MessagRecv':
             user = str(msg.get('sender'))
-            print("Message Received from <{}>".format(user))
+            #print("Message Received from <{}>".format(user))
 
-
-            msg_list = chat_box['msgList']
             sender_info = ("INSERT INTO usr_7091728998 (time,contacts, status, reply_status, message) VALUES (%(time)s, %(contacts)s, %(status)s,%(reply_status)s, %(message)s)")
 
             sender_params = {
@@ -249,13 +253,10 @@ def msg_receiver(mydb,cursor,userID,clientObj, chat_box):
                 'message':msg.get('message')
             }
             insert_data(mydb,cursor,sender_info, sender_params)
-            #msg="{:<8}[{}]:{}".format(msg['sender'],msg['time'],msg['message'])
-            #msg_list.insert(tkinter.END, msg)
-            
             print("{}[{}]:{}".format(msg['sender'],msg['time'],msg['message']))
 
 def contacts_status(mydb,cursor,userID,client):
-    print('Keep running and checking about all contacts Online Status')
+   # print('Keep running and checking about all contacts Online Status')
     while True:
         query="select contacts,status from {}".format(CONTACT_TABLE_NAME)
         result = query_table(mydb,cursor,query,CONTACT_TABLE_NAME)
@@ -298,19 +299,22 @@ def connectServer(mydb,cursor,userID):
     
 
 def client_start(mydb,cursor,userID):
+    global activeChat
     connectServer(mydb,cursor,userID)
     while True:
-        op = menu()
-        if op == 1:
-            add_buddies(mydb,cursor)
-        elif op == 2:
-            delete_buddies()
-        elif op == 3:
-            newMessages(mydb,cursor,userID)
-        elif op == 4:
-            onlineBuddies(mydb,cursor,userID)
-        elif op == 5:
-            goOffline(userID)
+        if activeChat == False:
+            op = menu()
+            if op == 1:
+                add_buddies(mydb,cursor)
+            elif op == 2:
+                delete_buddies()
+            elif op == 3:
+                newMessages(mydb,cursor,userID)
+            elif op == 4:
+                onlineBuddies(mydb,cursor,userID)
+            elif op == 5:
+                goOffline(userID)
+            activeChat = True
 
 
 
@@ -329,4 +333,5 @@ if __name__ == '__main__':
     client_start(mydb,cursor,userID)
 
     while True:
+        time.sleep(10000)
         pass

@@ -38,7 +38,7 @@ def userConnHandler(conn,addr,mydb,cursor):
     'Handle User connection for each user'
     print("User Thread started ")
     while True:
-        data = conn.recv(2048)
+        data = conn.recv(2048) #Waiting for message from client
         msg = pickle.loads(data)
 
         #Now take the message to the operation level
@@ -107,13 +107,11 @@ def userConnHandler(conn,addr,mydb,cursor):
                         print("Bingooooooooooo")
 
 
-        elif msg.get('type') == 'MessageRecv':
-            print(' ')
         elif msg.get('type') == 'Offline':
             user_status = "UPDATE subscribers SET status = {} WHERE  user_id={}".format(2,msg.get('sender'))
             update_data(mydb,cursor,user_status)
  
-        elif msg.get('type') == 'Status':      
+        elif msg.get('type') == 'Status':   #Now Server will tell you who is online in your contacts  
             #print('Update {} About its all Buddies who is online'.format(msg.get('user')))
             contacts = msg.get('contacts')
             for cont,status in contacts.items():
@@ -131,9 +129,9 @@ def userConnHandler(conn,addr,mydb,cursor):
 
 def client_handler(server,mydb,cursor):
     print("Waiting for clients...")
-    server.listen(100)
-    while True:
-        conn, addr = server.accept()
+    server.listen(5)  #Queuing up the client request 
+    while True:  
+        conn, addr = server.accept() #This will accept the client request <---- CLient1, client2
         try:
             _thread.start_new_thread( userConnHandler, (conn, addr,mydb,cursor) )
         except:
