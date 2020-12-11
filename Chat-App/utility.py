@@ -1,3 +1,4 @@
+import json
 import mysql
 import mysql.connector
 from mysql.connector import errorcode
@@ -115,3 +116,19 @@ def test_insert():
 
 #result=query_table(query,user_id)
 #print(result)
+
+def getClientDB():
+    with open('client_config.json') as f:
+        data=json.load(f)
+        return data['ClientDB']
+
+def return_client_list():
+    with open('client_config.json') as f:
+        clientList=json.load(f)
+        return clientList['ClientList']
+
+def getAllClientDetails(clientName):
+    with open('client_config.json') as f:
+        clientParam=json.load(f)
+        clientInfo = clientParam[clientName]
+        return (clientInfo)

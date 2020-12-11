@@ -1,23 +1,18 @@
 import socket
 import _thread
 import time
-import json
 import pickle
 import utility
-import tkinter
+import sys
 from utility import *
-
-userID = '7091728998'
-userName = 'Mukesh'
 
 activeChat=False
 
-MAIN_TABLE_NAME = 'usr_'+userID
-DB_NAME = 'clientDB'
-CONTACT_TABLE_NAME='contacts'
+DB_NAME=getClientDB()
+
 #table Schema
 MAIN_TABLE_DISCRIPTON = (
-    "CREATE TABLE `"+MAIN_TABLE_NAME+"` ("
+    "CREATE TABLE `{}` ("
     "  `id` int(11) NOT NULL AUTO_INCREMENT,"
     "  `time` varchar(128) ,"
     "  `contacts` varchar(16) NOT NULL,"
@@ -28,7 +23,7 @@ MAIN_TABLE_DISCRIPTON = (
     ") ENGINE=InnoDB")
 
 CONTACT_TABLE_DISCRIPTON = (
-    "CREATE TABLE `"+CONTACT_TABLE_NAME+"` ("
+    "CREATE TABLE `{}` ("
     "  `id` int(11) NOT NULL AUTO_INCREMENT,"
     "  `contacts` varchar(16) NOT NULL,"
     "  `name` varchar(20) ,"
@@ -36,13 +31,8 @@ CONTACT_TABLE_DISCRIPTON = (
     "  PRIMARY KEY (`id`)"
     ") ENGINE=InnoDB")
 
-#serverDB = 'serverDB'
-ip = '127.0.0.1'
-port = 2222
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
-#client.bind((ip,port))
-chat_box={}
-enable_msgList = 1
+
 
 def menu():
     print("+--------------------+")
@@ -55,85 +45,34 @@ def menu():
     if op == '':
         return 0
     return int(op)
-    
 
-def send(event=None):  # event is passed by binders.
-    """Handles sending of messages."""
-    my_msg = chat_box['myMsg']
-    msg = my_msg.get()
-    lTime = time.asctime()
-    #print(msg)
-    msg_list = chat_box['msgList']
-    box_msg="{:<8}[{}]:{}".format(userName,lTime,msg)
-    msg_list.insert(tkinter.END, box_msg)
-    my_msg.set("")  # Clears input field.
-    msg_send = {
-        'type':'MessageSend',
-        'sender':userID,
-        'receiver':chat_box['receiver'],
-        'time':lTime,
-        'message':msg
-    }
-    payLoad =  pickle.dumps(msg_send)
-    client.send(payLoad)
-
-
-
-def chatBox(title):
-    top = tkinter.Tk()
-    top.title(title)
-    chat_box['top'] = top
-    messages_frame = tkinter.Frame(top)
-    my_msg = tkinter.StringVar()  # For the messages to be sent.
-    my_msg.set("Type your messages here.")
-    chat_box['myMsg'] = my_msg
-    scrollbar = tkinter.Scrollbar(messages_frame)  # To navigate through past messages.
-    # Following will contain the messages.
-    msg_list = tkinter.Listbox(messages_frame, height=15, width=50, yscrollcommand=scrollbar.set)
-    
-    scrollbar.pack(side=tkinter.RIGHT, fill=tkinter.Y)
-    msg_list.pack(side=tkinter.LEFT, fill=tkinter.BOTH)
-    msg_list.pack()
-    chat_box['msgList'] = msg_list
-    messages_frame.pack()
-
-    entry_field = tkinter.Entry(top, textvariable=my_msg)
-    entry_field.bind("<Return>", send)
-    entry_field.pack()
-    send_button = tkinter.Button(top, text="Send", command=send)
-    send_button.pack()
-
-
-def msg_sender(mydb,cursor,userID,receiverID):
+def msg_sender(mydb,cursor,userInfo,receiverID):
     global activeChat
     while activeChat == True:
-        reply=input("{} Type :".format(userID))
+        reply=input("{} Type :".format(userInfo['Mobile']))
         lTime = time.asctime()
 
         data = {
             'type':'MessageSend',
             'time':lTime,
-            'sender':userID,
+            'sender':userInfo['Mobile'],
             'receiver':receiverID,
             'message':reply
         }
         payLoad = pickle.dumps(data)
         client.send(payLoad)
-        print("{}[{}]:{}".format(userID,lTime,reply))
+        print("{}[{}]:{}".format(userInfo['Mobile'],lTime,reply))
         if reply.capitalize() == "Bye":
             activeChat = False
             
-
-
-
-
-def add_buddies(mydb,cursor):
+def add_buddies(mydb,cursor,userInfo):
     'Adding the buddies based on their mobile number'
+    global activeChat
     while True:
         number=input("Enter Mobile Number:")
         name=input("Name:")
         
-        insert_contact = ("INSERT INTO {} (contacts, name) VALUES (%(contacts)s, %(name)s)".format(CONTACT_TABLE_NAME))
+        insert_contact = ("INSERT INTO {} (contacts, name) VALUES (%(contacts)s, %(name)s)".format(userInfo['contactsTable']))
         print(insert_contact)
         contact_params={
             'contacts':number,
@@ -144,18 +83,19 @@ def add_buddies(mydb,cursor):
         if op == 'y':
             continue
         else:
-            return
+            activeChat=False
+            break
 
-def delete_buddies():
+def delete_buddies(userInfo):
     'deleting buddies from the contact list'
 
 
 
-def newMessages(mydb,cursor,userID):
+def newMessages(mydb,cursor,userInfo):
     'Show New Messages'
-    query = ("SELECT contacts,count(reply_status) FROM {} WHERE reply_status=1 group by contacts".format(MAIN_TABLE_NAME))
+    query = ("SELECT contacts,count(reply_status) FROM {} WHERE reply_status=1 group by contacts".format(userInfo['mainTable']))
 
-    result = query_table(mydb,cursor,query,MAIN_TABLE_NAME)
+    result = query_table(mydb,cursor,query,userInfo['mainTable'])
     if len(result) is not 0:
         # Print the names of the columns. 
         print ("{:<3} {:<15} {:<11}".format('Id','Contacts', 'New Message')) 
@@ -171,7 +111,7 @@ def newMessages(mydb,cursor,userID):
         for i in result:
             if count == select:
                 receiver=i[0]
-                query = ("SELECT contacts,time,message FROM {} WHERE contacts={} ".format(MAIN_TABLE_NAME,i[0]))
+                query = ("SELECT contacts,time,message FROM {} WHERE contacts={} ".format(userInfo['mainTable'],i[0]))
                 result = query_table(mydb,cursor,query,i[0])
                 for idx in result:
                     print("{:<8}[{}]:{}".format(idx[0],idx[1],idx[2]))
@@ -179,16 +119,13 @@ def newMessages(mydb,cursor,userID):
 
             count += 1
         if count == select:
-            _thread.start_new_thread( msg_sender, (mydb,cursor,userID, receiver ) )
+            _thread.start_new_thread( msg_sender, (mydb,cursor,userInfo, receiver ) )
 
 
-
-
-
-def onlineBuddies(mydb,cursor,userID):
+def onlineBuddies(mydb,cursor,userInfo):
     'Check who is online'
-    query="select * from {} where status=2".format(CONTACT_TABLE_NAME)
-    result = query_table(mydb,cursor,query,CONTACT_TABLE_NAME)
+    query="select * from {} where status=2".format(userInfo['contactsTable'])
+    result = query_table(mydb,cursor,query,userInfo['contactsTable'])
     if len(result) is not 0:
         print("{:<3} {:<15} {:<15} {:<11}".format('Id','Contacts','Name', 'Status'))
 
@@ -202,7 +139,7 @@ def onlineBuddies(mydb,cursor,userID):
         for i in result:
             if count == select:
                 receiver=i[1]
-                query = ("SELECT contacts,time,message FROM {} WHERE contacts={} ".format(MAIN_TABLE_NAME,i[1]))
+                query = ("SELECT contacts,time,message FROM {} WHERE contacts={} ".format(userInfo['mainTable']),i[1])
                 result = query_table(mydb,cursor,query,i[1])
                 for idx in result:
                     msg="{:<8}[{}]:{}".format(i[2],idx[1],idx[2])
@@ -211,22 +148,20 @@ def onlineBuddies(mydb,cursor,userID):
 
             count += 1
         if count == select:
-            _thread.start_new_thread( msg_sender, (mydb,cursor,userID, receiver ) )
+            _thread.start_new_thread( msg_sender, (mydb,cursor,userInfo, receiver ) )
 
-
-
-
-def goOffline(userID):
+def goOffline(userInfo):
     'Adio Amigos'
+    global activeChat
     offline_msg={
         'type':'Offline',
-        'sender':userID
+        'sender':userInfo['Mobile']
     }
     data = pickle.dumps(offline_msg)
     client.send(data)
+    activeChat = False
 
-
-def msg_receiver(mydb,cursor,userID,clientObj, chat_box):
+def msg_receiver(mydb,cursor,userInfo,clientObj):
     'This thread will keep receiving message from server'
     while True:
         data = clientObj.recv(2048)
@@ -235,15 +170,15 @@ def msg_receiver(mydb,cursor,userID,clientObj, chat_box):
             contacts = msg.get('contacts')
             for cont,status in contacts.items():
                 if status == 'Offline':
-                    user_status = "UPDATE {} SET status = {} WHERE  contacts={}".format(CONTACT_TABLE_NAME,1,cont)
+                    user_status = "UPDATE {} SET status = {} WHERE  contacts={}".format(userInfo['contactsTable'],1,cont)
                 else:
-                    user_status = "UPDATE {} SET status = {} WHERE  contacts={}".format(CONTACT_TABLE_NAME,2,cont)
+                    user_status = "UPDATE {} SET status = {} WHERE  contacts={}".format(userInfo['contactsTable'],2,cont)
                 update_data(mydb,cursor,user_status)
         if msg.get('type') == 'MessagRecv':
             user = str(msg.get('sender'))
             #print("Message Received from <{}>".format(user))
 
-            sender_info = ("INSERT INTO usr_7091728998 (time,contacts, status, reply_status, message) VALUES (%(time)s, %(contacts)s, %(status)s,%(reply_status)s, %(message)s)")
+            sender_info = ("INSERT INTO {} (time,contacts, status, reply_status, message) VALUES (%(time)s, %(contacts)s, %(status)s,%(reply_status)s, %(message)s)".format(userInfo['mainTable']))
 
             sender_params = {
                 'time':str(msg.get('time')),
@@ -255,14 +190,14 @@ def msg_receiver(mydb,cursor,userID,clientObj, chat_box):
             insert_data(mydb,cursor,sender_info, sender_params)
             print("{}[{}]:{}".format(msg['sender'],msg['time'],msg['message']))
 
-def contacts_status(mydb,cursor,userID,client):
+def contacts_status(mydb,cursor,userInfo,client):
    # print('Keep running and checking about all contacts Online Status')
     while True:
-        query="select contacts,status from {}".format(CONTACT_TABLE_NAME)
-        result = query_table(mydb,cursor,query,CONTACT_TABLE_NAME)
+        query="select contacts,status from {}".format(userInfo['contactsTable'])
+        result = query_table(mydb,cursor,query,userInfo['contactsTable'])
         online_check={
             'type':'Status',
-            'sender':userID
+            'sender':userInfo['Mobile']
             }
         contacts={}
         if len(result) != 0:
@@ -274,63 +209,63 @@ def contacts_status(mydb,cursor,userID,client):
 
         time.sleep(3)
 
-
-
-def connectServer(mydb,cursor,userID):
-    serverIP = '127.0.0.1'
-    serverPort = 1234
+def connectServer(mydb,cursor,userInfo):
     try:
-        client.connect((serverIP, serverPort)) 
+        client.connect(('127.0.0.1', 1234)) 
     except:
         print("Server connection is not established")
         return
     
     #Notify to server you are online now :)
     lTime = time.asctime()
-    helloMsg = {'type':'Online','user':userID, 'time':lTime}
+    helloMsg = {'type':'Online','user':userInfo['Mobile'], 'time':lTime}
     data = pickle.dumps(helloMsg)
     client.send(data)
     # Create two threads as follows
     try:
-        _thread.start_new_thread( msg_receiver, (mydb,cursor,userID, client,chat_box) )
-        _thread.start_new_thread( contacts_status, (mydb,cursor,userID, client ) )
+        _thread.start_new_thread( msg_receiver, (mydb,cursor,userInfo, client) )
+        _thread.start_new_thread( contacts_status, (mydb,cursor,userInfo, client ) )
     except:
         print ("Error: unable to start thread")
-    
 
-def client_start(mydb,cursor,userID):
+def client_start(mydb,cursor,userInfo):
     global activeChat
-    connectServer(mydb,cursor,userID)
+    connectServer(mydb,cursor,userInfo)
     while True:
         if activeChat == False:
             op = menu()
             if op == 1:
-                add_buddies(mydb,cursor)
+                add_buddies(mydb,cursor,userInfo)
             elif op == 2:
-                delete_buddies()
+                delete_buddies(userInfo)
             elif op == 3:
-                newMessages(mydb,cursor,userID)
+                newMessages(mydb,cursor,userInfo)
             elif op == 4:
-                onlineBuddies(mydb,cursor,userID)
+                onlineBuddies(mydb,cursor,userInfo)
             elif op == 5:
-                goOffline(userID)
-            activeChat = True
-
-
+                goOffline(userInfo)
+            pass
 
 if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print("Pass any of client Name as an Argument")
+        print(return_client_list())
+        sys.exit(1)
+    
+    userInfo=getAllClientDetails(sys.argv[1])
+    print(userInfo)
     try:
-        mydb = mysql.connector.connect(host='127.0.0.1',user='root',database=DB_NAME)
+        mydb = mysql.connector.connect(host=userInfo['IP'],user='root',database=DB_NAME)
         cursor = mydb.cursor()
     except mysql.connector.Error as err:
-        mydb = mysql.connector.connect(host='127.0.0.1',user='root')
+        mydb = mysql.connector.connect(host=userInfo['IP'],user='root')
         cursor = mydb.cursor()
         create_database(cursor,DB_NAME)
     
-    db_init(mydb,cursor,MAIN_TABLE_DISCRIPTON,MAIN_TABLE_NAME,DB_NAME)
+    db_init(mydb,cursor,MAIN_TABLE_DISCRIPTON.format(userInfo['mainTable']),userInfo['mainTable'],DB_NAME)
     #Create Contact Table where all contacts entries are made
-    createTable(cursor,CONTACT_TABLE_DISCRIPTON,CONTACT_TABLE_NAME)
-    client_start(mydb,cursor,userID)
+    createTable(cursor,CONTACT_TABLE_DISCRIPTON.format(userInfo['contactsTable']),userInfo['contactsTable'])
+    client_start(mydb,cursor,userInfo)
 
     while True:
         time.sleep(10000)
