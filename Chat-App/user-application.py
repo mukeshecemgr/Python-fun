@@ -51,7 +51,6 @@ def msg_sender(mydb,cursor,userInfo,receiverID):
     while activeChat == True:
         reply=input("{} Type :".format(userInfo['Mobile']))
         lTime = time.asctime()
-
         data = {
             'type':'MessageSend',
             'time':lTime,
@@ -93,6 +92,7 @@ def delete_buddies(userInfo):
 
 def newMessages(mydb,cursor,userInfo):
     'Show New Messages'
+    global activeChat
     query = ("SELECT contacts,count(reply_status) FROM {} WHERE reply_status=1 group by contacts".format(userInfo['mainTable']))
 
     result = query_table(mydb,cursor,query,userInfo['mainTable'])
@@ -119,11 +119,13 @@ def newMessages(mydb,cursor,userInfo):
 
             count += 1
         if count == select:
+            activeChat = True
             _thread.start_new_thread( msg_sender, (mydb,cursor,userInfo, receiver ) )
 
 
 def onlineBuddies(mydb,cursor,userInfo):
     'Check who is online'
+    global activeChat
     query="select * from {} where status=2".format(userInfo['contactsTable'])
     result = query_table(mydb,cursor,query,userInfo['contactsTable'])
     if len(result) is not 0:
@@ -139,15 +141,19 @@ def onlineBuddies(mydb,cursor,userInfo):
         for i in result:
             if count == select:
                 receiver=i[1]
-                query = ("SELECT contacts,time,message FROM {} WHERE contacts={} ".format(userInfo['mainTable']),i[1])
+                print(receiver)
+                query = ("SELECT contacts,time,message FROM {} WHERE contacts={} ".format(userInfo['mainTable'],i[1]))
                 result = query_table(mydb,cursor,query,i[1])
+                print(len(result))
                 for idx in result:
                     msg="{:<8}[{}]:{}".format(i[2],idx[1],idx[2])
                     print(msg)
                 break
 
             count += 1
+        print("{}======={}".format(count,select))
         if count == select:
+            activeChat = True
             _thread.start_new_thread( msg_sender, (mydb,cursor,userInfo, receiver ) )
 
 def goOffline(userInfo):
@@ -163,9 +169,11 @@ def goOffline(userInfo):
 
 def msg_receiver(mydb,cursor,userInfo,clientObj):
     'This thread will keep receiving message from server'
+    global activeChat
     while True:
         data = clientObj.recv(2048)
         msg = pickle.loads(data)
+        activeChat = True
         if msg.get('type') == 'Status':
             contacts = msg.get('contacts')
             for cont,status in contacts.items():
@@ -179,7 +187,7 @@ def msg_receiver(mydb,cursor,userInfo,clientObj):
             #print("Message Received from <{}>".format(user))
 
             sender_info = ("INSERT INTO {} (time,contacts, status, reply_status, message) VALUES (%(time)s, %(contacts)s, %(status)s,%(reply_status)s, %(message)s)".format(userInfo['mainTable']))
-
+            print(sender_info)
             sender_params = {
                 'time':str(msg.get('time')),
                 'contacts':user,
@@ -244,6 +252,7 @@ def client_start(mydb,cursor,userInfo):
                 onlineBuddies(mydb,cursor,userInfo)
             elif op == 5:
                 goOffline(userInfo)
+            
             pass
 
 if __name__ == '__main__':
